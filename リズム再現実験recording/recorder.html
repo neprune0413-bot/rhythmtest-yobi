@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動画同期 MIDI 打鍵録音ツール</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #1a1a24;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { margin-bottom: 10px; font-size: 1.5rem; color: #4facfe; }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background-color: #252636;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        .stage-header {
+            text-align: center;
+            margin-bottom: 15px;
+            background: #1a1b26;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #3b3e5b;
+        }
+        .stage-badge {
+            display: inline-block;
+            background: #4facfe;
+            color: #000;
+            font-weight: bold;
+            font-size: 0.85rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            margin-bottom: 6px;
+        }
+        .stage-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        video {
+            width: 100%;
+            display: block;
+            pointer-events: none; /* 再生中の動画クリック操作を防止 */
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .start-btn {
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+            border: none;
+            color: #000;
+            font-weight: bold;
+            font-size: 1.1rem;
+            padding: 12px 30px;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+        .start-btn:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .start-btn:not(:disabled):hover { transform: scale(1.03); }
+
+        .status {
+            text-align: center;
+            font-size: 1rem;
+            margin-bottom: 15px;
+            color: #a0a5c0;
+            min-height: 1.5em;
+        }
+
+        .keys-display {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .key-box {
+            width: 140px;
+            padding: 15px 0;
+            background: #1a1b26;
+            border: 2px solid #3b3e5b;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.05s ease;
+        }
+        .key-box span {
+            display: block;
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 4px;
+        }
+        .key-box.active {
+            background: #00f2fe;
+            color: #000;
+            border-color: #00f2fe;
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.6);
+        }
+        .key-box.active span { color: #222; }
+
+        .download-section {
+            background: #1a1b26;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            text-align: center;
+            display: none;
+        }
+        .instruction-title {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #4facfe;
+            margin-bottom: 15px;
+        }
+        .download-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 550px;
+            margin: 0 auto 20px auto;
+        }
+        .dl-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #252636;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #3b3e5b;
+        }
+        .dl-card .card-label {
+            font-weight: bold;
+            color: #00f2fe;
+            width: 70px;
+            text-align: left;
+            font-size: 0.95rem;
+        }
+        .dl-card input {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 0.95rem;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background-color: #1a1b26;
+            color: #fff;
+        }
+        .dl-card input:focus {
+            outline: none;
+            border-color: #00f2fe;
+        }
+        .dl-btn {
+            background: #28a745;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .dl-btn:hover { background: #218838; }
+        .reset-btn {
+            background: #6c757d;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>動画同期 MIDI 打鍵録音ツール</h1>
+    
+    <div class="stage-header">
+        <span id="stageBadge" class="stage-badge">STEP 1/2</span>
+        <div id="stageTitle" class="stage-title">リズム力測定チュートリアル</div>
+    </div>
+
+    <div class="video-wrapper">
+        <video id="videoPlayer" playsinline></video>
+    </div>
+
+    <div class="controls">
+        <button id="startBtn" class="start-btn">スタート</button>
+    </div>
+
+    <div id="statusText" class="status">「スタート」を押すと動画が再生されます</div>
+
+    <div class="keys-display">
+        <div id="key-space" class="key-box">Space<span>C4 (Note 60)</span></div>
+    </div>
+
+    <div id="downloadSection" class="download-section">
+        <h3>🎉 測定が完了しました</h3>
+        <p class="instruction-title">押した人の名前を、カタカナで入力してください</p>
+        
+        <div class="download-grid">
+            <div class="dl-card">
+                <span class="card-label">名前</span>
+                <input type="text" id="userName" placeholder="例：ヤマダ タロウ">
+                <button class="dl-btn" onclick="downloadMidi()">📥 MIDI保存</button>
+            </div>
+        </div>
+        
+        <button id="resetBtn" class="dl-btn reset-btn" onclick="resetApp()">🔄 最初からやり直す</button>
+    </div>
+</div>
+
+<script>
+    const NOTE_NUMBER = 60; // Spaceキーに対応するMIDIノート番号 (C4)
+
+    // 動画ステージの設定 (2つの動画)
+    const STAGES = [
+        { title: "リズム力測定チュートリアル", src: "videos/tutorial.mp4", isTest: false },
+        { title: "リズム力テスト", src: "videos/test.mp4", isTest: true }
+    ];
+
+    const videoPlayer = document.getElementById('videoPlayer');
+    const startBtn = document.getElementById('startBtn');
+    const statusText = document.getElementById('statusText');
+    const stageBadge = document.getElementById('stageBadge');
+    const stageTitle = document.getElementById('stageTitle');
+    const downloadSection = document.getElementById('downloadSection');
+    const keySpaceUI = document.getElementById('key-space');
+    const userNameInput = document.getElementById('userName');
+
+    let currentStageIndex = 0;
+    let isRecording = false;
+    let isSpacePressed = false;
+    
+    let recordedEvents = []; // リズムテストで録音されたイベント
+    let startTime = 0; // 高精度タイマー基準時間 (ms)
+
+    // 全角スペースが入力されたときにリアルタイムで半角スペースに自動変換する
+    userNameInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/ /g, ' ');
+    });
+
+    // 初期化・ステージ読み込み
+    function loadStage(index) {
+        if (index >= STAGES.length) return;
+
+        const stage = STAGES[index];
+        stageBadge.textContent = `STEP ${index + 1}/${STAGES.length}`;
+        stageTitle.textContent = stage.title;
+        videoPlayer.src = stage.src;
+
+        startBtn.disabled = false;
+        startBtn.style.display = 'inline-block';
+
+        if (stage.isTest) {
+            statusText.textContent = `「スタート」を押すと${stage.title}が開始します（本番・打鍵録音あり）。`;
+        } else {
+            statusText.textContent = `「スタート」を押すとチュートリアル動画が流れます（練習用）。`;
+        }
+    }
+
+    // 1. スタートボタン処理
+    startBtn.addEventListener('click', () => {
+        const stage = STAGES[currentStageIndex];
+
+        recordedEvents = [];
+        isSpacePressed = false;
+        videoPlayer.currentTime = 0;
+
+        // 動画の1フレーム目が実際に描画された瞬間を0秒基準として計測スタート
+        videoPlayer.addEventListener('playing', () => {
+            startTime = performance.now();
+            isRecording = stage.isTest; // テスト動画の時のみMIDI記録を有効化
+            startBtn.disabled = true;
+
+            if (stage.isTest) {
+                statusText.textContent = `🔴 録音中... Spaceキーを押してください (${stage.title})`;
+            } else {
+                statusText.textContent = `▶ 再生中... Spaceキーを押すと動作確認ができます（※録音はされません）`;
+            }
+        }, { once: true });
+
+        videoPlayer.play().catch(err => {
+            alert(`動画「${stage.src}」の再生に失敗しました。ファイルパスを確認してください。\n詳細: ` + err.message);
+        });
+    });
+
+    // 2. キー入力ハンドリング（入力欄フォーカス時は通常入力できるように保護）
+    window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+
+        if (e.code === 'Space' || e.key === ' ') {
+            e.preventDefault(); // 画面スクロール防止
+        }
+
+        if ((e.code === 'Space' || e.key === ' ') && !isSpacePressed) {
+            isSpacePressed = true;
+            keySpaceUI.classList.add('active'); // 画面上のキー発光（チュートリアルでも動く）
+
+            // テスト動画再生中のみMIDIイベントとして記録
+            if (isRecording) {
+                const timeMs = Math.max(0, e.timeStamp - startTime);
+                recordedEvents.push({
+                    note: NOTE_NUMBER,
+                    type: 'noteOn',
+                    time: timeMs,
+                    velocity: 100
+                });
+            }
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+
+        if (e.code === 'Space' || e.key === ' ') {
+            e.preventDefault();
+        }
+
+        if ((e.code === 'Space' || e.key === ' ') && isSpacePressed) {
+            isSpacePressed = false;
+            keySpaceUI.classList.remove('active');
+
+            // テスト動画再生中のみMIDIイベントとして記録
+            if (isRecording) {
+                const timeMs = Math.max(0, e.timeStamp - startTime);
+                recordedEvents.push({
+                    note: NOTE_NUMBER,
+                    type: 'noteOff',
+                    time: timeMs,
+                    velocity: 0
+                });
+            }
+        }
+    });
+
+    // 3. 動画終了処理（自動で次のステージまたはダウンロード画面へ移動）
+    videoPlayer.addEventListener('ended', () => {
+        if (isRecording) {
+            isRecording = false;
+            const endTimeMs = performance.now() - startTime;
+            if (isSpacePressed) {
+                recordedEvents.push({
+                    note: NOTE_NUMBER,
+                    type: 'noteOff',
+                    time: endTimeMs,
+                    velocity: 0
+                });
+                keySpaceUI.classList.remove('active');
+                isSpacePressed = false;
+            }
+        }
+
+        currentStageIndex++;
+
+        if (currentStageIndex < STAGES.length) {
+            // 次の動画（テスト本番）へ進む
+            loadStage(currentStageIndex);
+        } else {
+            // すべての動画終了
+            startBtn.style.display = 'none';
+            stageBadge.textContent = 'COMPLETE';
+            stageTitle.textContent = 'すべての測定が終了しました';
+            statusText.textContent = "✅ お疲れ様でした！名前を入力してMIDIファイルをダウンロードしてください。";
+            downloadSection.style.display = 'block';
+        }
+    });
+
+    // 4. MIDIバイナリ生成ロジック (BPM 100 / 4/4 拍子対応)
+    function encodeVLQ(value) {
+        let buffer = [value & 0x7F];
+        while (value >>= 7) {
+            buffer.unshift((value & 0x7F) | 0x80);
+        }
+        return buffer;
+    }
+
+    function generateMidiBlob(events) {
+        let sorted = [...events].sort((a, b) => a.time - b.time);
+
+        let trackData = [];
+
+        // 1. Time Signature Meta Event (4/4拍子)
+        trackData.push(0x00, 0xFF, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08);
+
+        // 2. Tempo Meta Event (BPM 100 => 600,000 µs/拍 = 0x0927C0)
+        trackData.push(0x00, 0xFF, 0x51, 0x03, 0x09, 0x27, 0xC0);
+
+        let lastTime = 0;
+        sorted.forEach(evt => {
+            let deltaTime = Math.max(0, Math.round(evt.time - lastTime));
+            lastTime = evt.time;
+
+            let vlq = encodeVLQ(deltaTime);
+            trackData.push(...vlq);
+
+            let status = (evt.type === 'noteOn') ? 0x90 : 0x80;
+            trackData.push(status, evt.note, evt.velocity);
+        });
+
+        // 3. End of Track Meta Event
+        trackData.push(0x00, 0xFF, 0x2F, 0x00);
+
+        // Track Header (MTrk)
+        let trackHeader = [
+            0x4D, 0x54, 0x72, 0x6B,
+            (trackData.length >> 24) & 0xFF,
+            (trackData.length >> 16) & 0xFF,
+            (trackData.length >> 8) & 0xFF,
+            trackData.length & 0xFF
+        ];
+
+        // File Header (MThd): Format 0, 1 track, 600 PPQN (1 tick = 1 ms @ 100BPM)
+        let fileHeader = [
+            0x4D, 0x54, 0x68, 0x64, // "MThd"
+            0x00, 0x00, 0x00, 0x06, // Chunk Length (6)
+            0x00, 0x00,             // Format 0
+            0x00, 0x01,             // 1 Track
+            0x02, 0x58              // Division / PPQN = 600 (0x0258)
+        ];
+
+        let midiBuffer = new Uint8Array([...fileHeader, ...trackHeader, ...trackData]);
+        return new Blob([midiBuffer], { type: 'audio/midi' });
+    }
+
+    // 5. ダウンロード処理
+    function triggerDownload(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function downloadMidi() {
+        // 全角スペースを半角スペースに全置換し、連続スペースも1つにまとめる
+        let formattedName = userNameInput.value
+            .replace(/ /g, ' ')
+            .trim()
+            .replace(/\s+/g, ' ');
+
+        if (!formattedName) {
+            alert("名前（カタカナ）を入力してください。");
+            userNameInput.focus();
+            return;
+        }
+
+        // 名字と名前が分かれているかチェック
+        if (!formattedName.includes(' ')) {
+            alert("名前と名字の間は半角スペースを入れてください（例：ヤマダ タロウ）");
+            userNameInput.focus();
+            return;
+        }
+
+        userNameInput.value = formattedName;
+        const safeName = formattedName.replace(/[\/\\?%*:|"<>]/g, '_');
+        const filename = `${safeName}_プレイヤーMIDI.mid`;
+
+        const blob = generateMidiBlob(recordedEvents);
+        triggerDownload(blob, filename);
+    }
+
+    function resetApp() {
+        currentStageIndex = 0;
+        recordedEvents = [];
+        userNameInput.value = '';
+        downloadSection.style.display = 'none';
+        loadStage(0);
+    }
+
+    // アプリ起動時にチュートリアルステージをセットアップ
+    loadStage(0);
+</script>
+
+</body>
+</html>
