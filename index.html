@@ -251,9 +251,7 @@
     let currentStageIndex = 0;
     let isRecording = false;
     let isSpacePressed = false;
-    
-    let recordedEvents = []; // リズムテストで録音されたイベント
-    let startTime = 0; // 高精度タイマー基準時間 (ms)
+    let recordedEvents = []; 
 
     // 全角スペースが入力されたときにリアルタイムで半角スペースに自動変換する
     userNameInput.addEventListener('input', (e) => {
@@ -268,7 +266,7 @@
         stageBadge.textContent = `STEP ${index + 1}/${STAGES.length}`;
         stageTitle.textContent = stage.title;
         videoPlayer.src = stage.src;
-        videoPlayer.load(); // ソース変更後の確実な再読み込み
+        videoPlayer.load();
 
         startBtn.disabled = false;
         startBtn.style.display = 'inline-block';
@@ -288,25 +286,25 @@
         isSpacePressed = false;
         videoPlayer.currentTime = 0;
 
-        // 動画の1フレーム目が実際に描画された瞬間を0秒基準として計測スタート
-        videoPlayer.addEventListener('playing', () => {
-            startTime = performance.now();
-            isRecording = stage.isTest; // テスト動画の時のみMIDI記録を有効化
-            startBtn.disabled = true;
+        // スタート時点で録音フラグを立てて頭抜けを防止
+        isRecording = stage.isTest;
+        startBtn.disabled = true;
+        startBtn.blur(); // ボタンからフォーカスを外してSpace連打でのボタン再押しを防止
 
-            if (stage.isTest) {
-                statusText.textContent = `🔴 録音中... Spaceキーを押してください (${stage.title})`;
-            } else {
-                statusText.textContent = `▶ 再生中... Spaceキーを押すと動作確認ができます（※録音はされません）`;
-            }
-        }, { once: true });
+        if (stage.isTest) {
+            statusText.textContent = `🔴 録音中... Spaceキーを押してください (${stage.title})`;
+        } else {
+            statusText.textContent = `▶ 再生中... Spaceキーを押すと動作確認ができます（※録音はされません）`;
+        }
 
         videoPlayer.play().catch(err => {
             alert(`動画「${stage.src}」の再生に失敗しました。ファイルパスを確認してください。\n詳細: ` + err.message);
+            isRecording = false;
+            startBtn.disabled = false;
         });
     });
 
-    // 2. キー入力ハンドリング（入力欄フォーカス時は通常入力できるように保護）
+    // 2. キー入力ハンドリング（videoPlayer.currentTimeに直接同期させて録音）
     window.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT') return;
 
@@ -316,11 +314,10 @@
 
         if ((e.code === 'Space' || e.key === ' ') && !isSpacePressed) {
             isSpacePressed = true;
-            keySpaceUI.classList.add('active'); // 画面上のキー発光（チュートリアルでも動く）
+            keySpaceUI.classList.add('active');
 
-            // テスト動画再生中のみMIDIイベントとして記録
             if (isRecording) {
-                const timeMs = Math.max(0, e.timeStamp - startTime);
+                const timeMs = Math.round(videoPlayer.currentTime * 1000);
                 recordedEvents.push({
                     note: NOTE_NUMBER,
                     type: 'noteOn',
@@ -342,9 +339,8 @@
             isSpacePressed = false;
             keySpaceUI.classList.remove('active');
 
-            // テスト動画再生中のみMIDIイベントとして記録
             if (isRecording) {
-                const timeMs = Math.max(0, e.timeStamp - startTime);
+                const timeMs = Math.round(videoPlayer.currentTime * 1000);
                 recordedEvents.push({
                     note: NOTE_NUMBER,
                     type: 'noteOff',
@@ -355,11 +351,11 @@
         }
     });
 
-    // 3. 動画終了処理（自動で次のステージまたはダウンロード画面へ移動）
+    // 3. 動画終了処理
     videoPlayer.addEventListener('ended', () => {
         if (isRecording) {
             isRecording = false;
-            const endTimeMs = performance.now() - startTime;
+            const endTimeMs = Math.round(videoPlayer.currentTime * 1000);
             if (isSpacePressed) {
                 recordedEvents.push({
                     note: NOTE_NUMBER,
@@ -375,10 +371,8 @@
         currentStageIndex++;
 
         if (currentStageIndex < STAGES.length) {
-            // 次の動画（テスト本番）へ進む
             loadStage(currentStageIndex);
         } else {
-            // すべての動画終了
             startBtn.style.display = 'none';
             stageBadge.textContent = 'COMPLETE';
             stageTitle.textContent = 'すべての測定が終了しました';
@@ -477,8 +471,7 @@
         }
 
         userNameInput.value = formattedName;
-        const safeName = formattedName.replace(/[\/\\?%*:|"<>]/g, '_');
-        const filename = `${safeName}_プレイヤーMIDI.mid`;
+        const filename = `${formattedName}_プレイヤーMIDI.mid`;
 
         const blob = generateMidiBlob(recordedEvents);
         triggerDownload(blob, filename);
