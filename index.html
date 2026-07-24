@@ -235,8 +235,8 @@
 
     // 動画ステージの設定（最上層ルートディレクトリのファイルを直接指定）
     const STAGES = [
-        { title: "リズム力測定チュートリアル", src: "tutorial.mp4", isTest: false },
-        { title: "リズム力テスト", src: "test.mp4", isTest: true }
+        { title: "リズム力測定チュートリアル", src: "./tutorial.mp4", isTest: false },
+        { title: "リズム力テスト", src: "./test.mp4", isTest: true }
     ];
 
     const videoPlayer = document.getElementById('videoPlayer');
@@ -268,6 +268,7 @@
         stageBadge.textContent = `STEP ${index + 1}/${STAGES.length}`;
         stageTitle.textContent = stage.title;
         videoPlayer.src = stage.src;
+        videoPlayer.load(); // ソース変更後の確実な再読み込み
 
         startBtn.disabled = false;
         startBtn.style.display = 'inline-block';
